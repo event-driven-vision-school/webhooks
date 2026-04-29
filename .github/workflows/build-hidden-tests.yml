@@ -1,0 +1,62 @@
+name: Build Hidden Tests
+
+on:
+  workflow_call:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository }}
+      options: -u root
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: solution
+
+      - name: Build Cython extension
+        run: |
+          python3 setup.py build_ext
+
+      - name: Save compiled files
+        run: |
+          mkdir -p /tmp/compiled/tests /tmp/compiled/assignments
+          cp tests/* /tmp/compiled/tests/ 2>/dev/null || true
+          cp assignments/* /tmp/compiled/assignments/ 2>/dev/null || true
+          ls -la /tmp/compiled/tests/ /tmp/compiled/assignments/
+
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
+
+      - name: Configure git safe directory
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git status
+
+      - name: Restore compiled files to main
+        run: |
+          mkdir -p tests assignments
+          cp /tmp/compiled/tests/* tests/ 2>/dev/null || true
+          cp /tmp/compiled/assignments/* assignments/ 2>/dev/null || true
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Check for changes and push
+        run: |
+          if git diff --quiet; then
+            echo "No changes to compiled files"
+          else
+            echo "Changes detected, committing and pushing"
+            git add .
+            git commit -m "build: compile hidden_tests Cython extension" -m "Automatic build from hidden_tests.py changes" -m "Compiled extension for Python 3.12 on Linux x86_64" -m "[skip ci]"
+            git push origin main
+          fi

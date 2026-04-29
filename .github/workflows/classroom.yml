@@ -1,0 +1,99 @@
+name: Smoke Test
+
+on:
+  workflow_call:
+    inputs:
+      gradebook_repo:
+        required: false
+        type: string
+        default: 'event-driven-vision-school/gradebook'
+    secrets:
+      GRADEBOOK_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  python-test:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository }}:codespaces
+      options: -u root
+    steps:
+      - name: Checkout (GitHub)
+        uses: actions/checkout@v4
+
+      - name: Run test docker
+        run: |
+          python3 -m pytest test_assignment.py -v --tb=short --junit-xml=results.xml || true
+
+      - name: Checkout webhooks repo (scripts)
+        uses: actions/checkout@v4
+        with:
+          repository: event-driven-vision-school/webhooks
+          ref: main
+          path: _webhooks
+
+      # Parse the JUnit XML produced by pytest and push a score row to the
+      # gradebook repo. The gradebook repo must exist beforehand and contain a
+      # README.md with the marker lines shown in its own README.
+      - name: Update gradebook
+        shell: bash
+        env:
+          # Fine-grained PAT with Contents read+write on the gradebook repo.
+          # Store it as a secret in the *assignment* repo (or the org):
+          #   Settings → Secrets → Actions → GRADEBOOK_TOKEN
+          GRADEBOOK_TOKEN: ${{ secrets.GRADEBOOK_TOKEN }}
+          GRADEBOOK_REPO: ${{ inputs.gradebook_repo }}
+        run: |
+          set -euo pipefail
+
+          STUDENT="${{ github.event.commits[0].author.name }}"
+          if [ "$STUDENT" = "github-classroom[bot]" ]; then
+            echo "Skipping gradebook update for github-classroom[bot]."
+            exit 0
+          fi
+
+          # ── 1. Parse results.xml ──────────────────────────────────────────
+          SCORE=$(python3 _webhooks/.github/scripts/parse_test_results.py "results.xml")
+
+          TIMESTAMP=$(TZ=Europe/Rome date "+%d-%m-%Y %H:%M %Z")
+          REPO="${{ github.repository }}"
+          RUN_URL="https://github.com/$REPO/actions/runs/${{ github.run_id }}"
+          # Extract assignment name from repo (e.g., "template-assignment-python" from "org/template-assignment-python-username")
+          ASSIGNMENT=$(echo "$REPO" | sed 's|^.*/||; s/-[^-]*$//')
+
+          echo "Score for $STUDENT: $SCORE"
+
+          # ── 2. Clone the gradebook repo ───────────────────────────────────
+          git clone \
+            "https://x-access-token:${GRADEBOOK_TOKEN}@github.com/${GRADEBOOK_REPO}.git" \
+            gradebook
+
+          # ── 3. Upsert the student row in README.md ────────────────────────
+          python3 gradebook/scripts/update_gradebook_readme.py \
+            gradebook/README.md \
+            "$ASSIGNMENT" \
+            "$STUDENT" \
+            "$SCORE" \
+            "$TIMESTAMP" \
+            "$RUN_URL"
+
+          # ── 4. Commit and push ────────────────────────────────────────────
+          cd gradebook
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          # Only commit if something actually changed
+          git diff --cached --quiet \
+            || git commit -m "grade: ${STUDENT} scored ${SCORE} (run ${{ github.run_id }})"
+          git push
+
+          # ── 1b. Fail if score is not maximum ─────────────────────────────
+          PASSED=$(echo "$SCORE" | cut -d'/' -f1)
+          TOTAL=$(echo "$SCORE"  | cut -d'/' -f2)
+          if [ "$PASSED" != "$TOTAL" ]; then
+            echo "Score is not maximum ($SCORE). Failing."
+            exit 1
+          fi

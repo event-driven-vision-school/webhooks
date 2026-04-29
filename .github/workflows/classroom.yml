@@ -31,7 +31,7 @@ jobs:
 
       - name: Run test docker
         run: |
-          python3 -m pytest test_assignment.py -v --tb=short --junit-xml=results.xml || true
+          python3 -m pytest . -v --tb=short --junit-xml=/tmp/results.xml || true
 
       - name: Checkout webhooks repo (scripts)
         uses: actions/checkout@v4
@@ -61,7 +61,7 @@ jobs:
           fi
 
           # ── 1. Parse results.xml ──────────────────────────────────────────
-          SCORE=$(python3 _webhooks/.github/scripts/parse_test_results.py "results.xml")
+          SCORE=$(python3 _webhooks/.github/scripts/parse_test_results.py "/tmp/results.xml")
 
           TIMESTAMP=$(TZ=Europe/Rome date "+%d-%m-%Y %H:%M %Z")
           REPO="${{ github.repository }}"

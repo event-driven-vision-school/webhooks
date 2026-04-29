@@ -2,15 +2,21 @@ name: Build Hidden Tests
 
 on:
   workflow_call:
+    inputs:
+      docker_image:
+        description: 'Full GHCR image reference to use as the build container (e.g. ghcr.io/org/repo:latest)'
+        required: true
+        type: string
 
 permissions:
   contents: write
+  packages: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository }}
+      image: ${{ inputs.docker_image }}
       options: -u root
 
     steps:

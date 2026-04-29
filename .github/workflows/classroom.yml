@@ -7,18 +7,23 @@ on:
         required: false
         type: string
         default: 'event-driven-vision-school/gradebook'
+      docker_image:
+        description: 'Full GHCR image reference to use as the test container (e.g. ghcr.io/org/repo:codespaces)'
+        required: true
+        type: string
     secrets:
       GRADEBOOK_TOKEN:
         required: false
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   python-test:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository }}:codespaces
+      image: ${{ inputs.docker_image }}
       options: -u root
     steps:
       - name: Checkout (GitHub)

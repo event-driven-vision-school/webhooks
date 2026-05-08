@@ -56,13 +56,8 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
-      - name: Check for changes and push
+      - name: Push compiled files
         run: |
-          if git diff --quiet; then
-            echo "No changes to compiled files"
-          else
-            echo "Changes detected, committing and pushing"
-            git add .
-            git commit -m "build: compile hidden_tests Cython extension" -m "Automatic build from hidden_tests.py changes" -m "Compiled extension for Python 3.12 on Linux x86_64" -m "[skip ci]"
-            git push origin main
-          fi
+          git add .
+          git commit -m "build: compile hidden_tests Cython extension" -m "Automatic build from hidden_tests.py changes" -m "Compiled extension for Python 3.12 on Linux x86_64" -m "[skip ci]"
+          git push origin main

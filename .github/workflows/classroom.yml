@@ -57,7 +57,7 @@ jobs:
           STUDENT="${{ github.event.commits[0].author.name }}"
           if [ "$STUDENT" = "github-classroom[bot]" ]; then
             echo "Skipping gradebook update for github-classroom[bot]."
-            exit 0
+            exit 1
           fi
 
           # ── 1. Parse results.xml ──────────────────────────────────────────

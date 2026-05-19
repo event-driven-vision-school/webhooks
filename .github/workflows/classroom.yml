@@ -11,6 +11,11 @@ on:
         description: 'Full GHCR image reference to use as the test container (e.g. ghcr.io/org/repo:codespaces)'
         required: true
         type: string
+      assignment_name:
+        description: 'Assignment name used as the key in the gradebook (e.g. template-assignment-python)'
+        required: false
+        type: string
+        default: ''
     secrets:
       GRADEBOOK_TOKEN:
         required: false
@@ -66,8 +71,12 @@ jobs:
           TIMESTAMP=$(TZ=Europe/Rome date "+%d-%m-%Y %H:%M %Z")
           REPO="${{ github.repository }}"
           RUN_URL="https://github.com/$REPO/actions/runs/${{ github.run_id }}"
-          # Extract assignment name from repo (e.g., "template-assignment-python" from "org/template-assignment-python-username")
-          ASSIGNMENT=$(echo "$REPO" | sed 's|^.*/||; s/-[^-]*$//')
+          # Use provided assignment name, or derive it from the repo name as a fallback
+          if [ -n "${{ inputs.assignment_name }}" ]; then
+            ASSIGNMENT="${{ inputs.assignment_name }}"
+          else
+            ASSIGNMENT=$(echo "$REPO" | sed 's|^.*/||; s/-[^-]*$//')
+          fi
 
           echo "Score for $STUDENT: $SCORE"
 
